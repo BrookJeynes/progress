@@ -1,0 +1,174 @@
+const std = @import("std");
+const termsize = @import("termsize.zig");
+const escape_codes = @import("escape_codes.zig");
+
+const Error = error{
+    MaxIsZero,
+    FailedToRender,
+    NumGreaterThanMax,
+};
+
+const Config = struct {
+    /// Progress bar description.
+    description: ?[]const u8 = null,
+    /// The progress bar prefix.
+    bar_prefix: u8 = '|',
+    /// The progress bar suffix.
+    bar_suffix: u8 = '|',
+    /// The charater to fill the progress bar with.
+    bar_fill_char: u8 = '#',
+    /// Whether to show the iteration count.
+    show_iterations: bool = false,
+    /// Whether to show the percentage.
+    show_percentage: bool = false,
+};
+
+const ProgressBar = @This();
+
+current_progress: usize = 0,
+max_progress: usize = 0,
+bw: std.io.BufferedWriter(4096, std.io.AnyWriter),
+config: Config,
+mutex: std.Thread.Mutex = std.Thread.Mutex{},
+
+pub fn init(max_progress: usize, writer: std.io.AnyWriter, config: Config) ProgressBar {
+    return ProgressBar{
+        .max_progress = max_progress,
+        .bw = std.io.bufferedWriter(writer),
+        .config = config,
+    };
+}
+
+/// Add `num` to the progress bar. If `num` is greater than the `max_progress`,
+/// `current_progress` will be set to the max.
+pub fn add(self: *ProgressBar, num: usize) Error!void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    if (self.max_progress == 0) {
+        return Error.MaxIsZero;
+    }
+
+    if (self.current_progress + num < self.max_progress) {
+        self.current_progress += num;
+    } else {
+        self.current_progress = self.max_progress;
+    }
+
+    self.render() catch return Error.FailedToRender;
+}
+
+/// Render the progress bar. The progress bar must have a `max_progress` greater
+/// than 0.
+///
+/// This function is not thread safe so it must be called with an acquired lock.
+pub fn render(self: *ProgressBar) !void {
+    if (self.max_progress == 0) {
+        return Error.MaxIsZero;
+    }
+
+    const winsize = try termsize.termSize(std.io.getStdOut());
+
+    try self.clearLine();
+
+    const percentage = @as(f32, @floatFromInt(self.current_progress)) / @as(f32, @floatFromInt(self.max_progress));
+
+    const extra_front_chars = brk: {
+        var count: usize = 0;
+
+        if (self.config.description) |desc| {
+            count += (desc.len + 3); // "{desc} ||"
+        } else {
+            count += 2; // "||"
+        }
+
+        if (self.config.show_percentage) count += 5;
+
+        break :brk count;
+    };
+
+    const extra_back_chars = brk: {
+        var count: usize = 0;
+
+        if (self.config.show_iterations) {
+            const num_len: usize = @intFromFloat(@ceil(@log10(@as(f32, @floatFromInt(self.max_progress + 1)))));
+            count += 8 + (num_len * 2); // [ {num_len} / {num_len} ]
+            try escape_codes.setCursorColumn(self.bw.writer(), winsize.?.width - count + 2);
+            _ = try self.bw.writer().print("[ {[curr]: >[padding]} / {[max]} ]\r", .{ .curr = self.current_progress, .padding = num_len, .max = self.max_progress });
+        }
+
+        break :brk count;
+    };
+
+    if (self.config.description) |desc| {
+        try self.bw.writer().print("{s}", .{desc});
+        try escape_codes.cursorForward(self.bw.writer(), 1);
+    }
+
+    if (self.config.show_percentage) {
+        try self.bw.writer().print("{d: >3}%", .{@as(u32, @intFromFloat(percentage * 100))});
+        try escape_codes.cursorForward(self.bw.writer(), 1);
+    }
+
+    _ = try self.bw.writer().writeByte(self.config.bar_prefix);
+
+    const range: usize = @intFromFloat(percentage * @as(f32, @floatFromInt(std.math.sub(usize, winsize.?.width, extra_front_chars + extra_back_chars) catch 0)));
+    for (0..range) |_| {
+        _ = try self.bw.writer().writeByte(self.config.bar_fill_char);
+    }
+
+    try escape_codes.hideCursor(self.bw.writer());
+    try escape_codes.setCursorColumn(self.bw.writer(), winsize.?.width - extra_back_chars);
+
+    _ = try self.bw.writer().writeByte(self.config.bar_suffix);
+
+    if (self.current_progress >= self.max_progress) {
+        _ = try self.bw.write("\n");
+    }
+
+    try self.bw.flush();
+}
+
+/// Returns `true` if the progress bar is finished and `false` otherwise.
+pub fn finished(self: *ProgressBar) bool {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    return self.current_progress >= self.max_progress;
+}
+
+/// Finish the progress bar.
+pub fn finish(self: *ProgressBar) void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    self.current_progress = self.max_progress;
+}
+
+/// Reset the progress bar.
+pub fn reset(self: *ProgressBar) void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    self.current_progress = 0;
+}
+
+/// Set the progress bar to the `num`. If `num` is greater than the `max_progress`,
+/// a `NumGreaterThanMax` error will be returned.
+pub fn set(self: *ProgressBar, num: usize) Error!void {
+    if (num > self.max_progress) return Error.NumGreaterThanMax;
+    self.current_progress = num;
+}
+
+/// Update the description.
+pub fn update_description(self: *ProgressBar, description: []const u8) void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    self.config.description = description;
+}
+
+fn clearLine(self: *ProgressBar) !void {
+    try escape_codes.clearCurrentLine(self.bw.writer());
+    try escape_codes.setCursorColumn(self.bw.writer(), 0);
+}

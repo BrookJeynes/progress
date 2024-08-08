@@ -1,0 +1,39 @@
+progress
+========
+
+A simple thread safe progress bar.
+
+Adding to your program
+----------------------
+1. Fetch the package.
+    `zig fetch --save git+https://github.com/BrookJeynes/progress`
+2. Add to your `build.zig`.
+    ```
+    const progress = b.dependency("progress", .{}).module("progress");
+    exe.root_module.addImport("progress", progress);
+    ```
+
+Minimal example
+---------------
+```zig
+const std = @import("std");
+const ProgressBar = @import("progress");
+
+pub fn main() !void {
+    const stdout = std.io.getStdOut().writer();
+    var pb = ProgressBar.init(10, stdout.any(), .{});
+
+    while (!pb.finished()) {
+        try pb.add(1);
+        std.time.sleep(std.time.ns_per_ms * 150);
+    }
+}
+```
+
+You can find more examples in the `examples/` folder.
+For more information, see the source code or documentation (`zig build docs`).
+
+Contributing
+-----------
+Contributions, issues, and feature requests are always welcome! This project is 
+using the latest stable release of Zig (0.13.0).
