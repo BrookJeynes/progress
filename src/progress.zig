@@ -61,7 +61,7 @@ pub fn add(self: *ProgressBar, num: usize) Error!void {
 /// Render the progress bar. The progress bar must have a `max_progress` greater
 /// than 0.
 ///
-/// This function is not thread safe so it must be called with an acquired lock.
+/// Render does not need to be explicitly called as `add` will render the bar.
 pub fn render(self: *ProgressBar) !void {
     if (self.max_progress == 0) {
         return Error.MaxIsZero;
