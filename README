@@ -25,6 +25,8 @@ pub fn main() !void {
 
     while (!pb.finished()) {
         try pb.add(1);
+        try pb.render();
+
         std.time.sleep(std.time.ns_per_ms * 150);
     }
 }

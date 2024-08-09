@@ -7,6 +7,8 @@ pub fn threadWorker(bar: *ProgressBar, seed: usize) !void {
 
     for (0..5) |_| {
         try bar.add(1);
+        try bar.render();
+
         std.time.sleep(std.time.ns_per_ms * num);
     }
 }

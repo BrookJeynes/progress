@@ -11,6 +11,10 @@ pub fn hideCursor(writer: anytype) !void {
     try writer.writeAll(csi ++ "?25l");
 }
 
+pub fn showCursor(writer: anytype) !void {
+    try writer.writeAll(csi ++ "?25h");
+}
+
 pub fn setCursorColumn(writer: anytype, column: usize) !void {
     try writer.print(csi ++ "{d}G", .{column});
 }

@@ -10,10 +10,14 @@ pub fn main() !void {
         .description = "A complex progress bar",
         .show_iterations = true,
         .show_percentage = true,
+        .write_newline_on_finish = false,
     });
+    defer pb.clear() catch {};
 
-    while (!pb.finished()) {
+    while (!pb.isFinished()) {
         try pb.add(1);
+        try pb.render();
+
         std.time.sleep(std.time.ns_per_ms * 150);
     }
 }
