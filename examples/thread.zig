@@ -6,7 +6,7 @@ pub fn threadWorker(bar: *ProgressBar, seed: usize) !void {
     const num = @mod(rand_impl.random().int(u64), 1000);
 
     for (0..5) |_| {
-        try bar.add(1);
+        bar.add(1);
         try bar.render();
 
         std.time.sleep(std.time.ns_per_ms * num);

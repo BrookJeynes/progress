@@ -3,9 +3,7 @@ const termsize = @import("termsize.zig");
 const escape_codes = @import("escape_codes.zig");
 
 const Error = error{
-    MaxIsZero,
     FailedToRender,
-    NumGreaterThanMax,
 };
 
 const Config = struct {
@@ -45,14 +43,11 @@ pub fn init(max_progress: usize, writer: std.io.AnyWriter, config: Config) Progr
     };
 }
 
-///Add `num` to the progress bar. If `num` is greater than `max_progress`, `current_progress` will be set to the max.
-pub fn add(self: *ProgressBar, num: usize) Error!void {
+///Add `num` to the progress bar.
+///If `num` is greater than `max_progress`, `current_progress` will be set to the max.
+pub fn add(self: *ProgressBar, num: usize) void {
     self.mutex.lock();
     defer self.mutex.unlock();
-
-    if (self.max_progress == 0) {
-        return Error.MaxIsZero;
-    }
 
     if (self.current_progress + num < self.max_progress) {
         self.current_progress += num;
@@ -87,7 +82,7 @@ pub fn render(self: *ProgressBar) !void {
             count += 2; // "||"
         }
 
-        if (self.config.show_percentage) count += 5;
+        if (self.config.show_percentage) count += 4; // "xxx%"
 
         break :brk count;
     };
@@ -170,13 +165,16 @@ pub fn reset(self: *ProgressBar) void {
 ///Set the progress bar to `num`.
 ///
 ///If `num` is equal to `max_progress`, `finished` is set true.
-///If `num` is greater than `max_progress`, `Error.NumGreaterThanMax` is returned.
-pub fn set(self: *ProgressBar, num: usize) Error!void {
+///If `num` is greater than `max_progress`, `current_progress` will be set to the max.
+pub fn set(self: *ProgressBar, num: usize) void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
-    if (num == self.max_progress) self.finished = true;
-    if (num > self.max_progress) return Error.NumGreaterThanMax;
+    if (num >= self.max_progress) {
+        self.finished = true;
+        self.current_progress = self.max_progress;
+        return;
+    }
 
     self.current_progress = num;
 }
