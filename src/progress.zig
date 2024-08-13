@@ -4,25 +4,34 @@ const escape_codes = @import("escape_codes.zig");
 
 const Error = error{
     FailedToRender,
+    ///Used when the progress bar is too small to render all the content.
+    BarTooSmall,
 };
 
+///Used when the terminal width cannot be retrieved.
+const default_bar_width: u16 = 40;
+
 const Config = struct {
-    /// Progress bar description.
+    ///Progress bar description.
     description: ?[]const u8 = null,
-    /// The progress bar prefix.
+    ///The progress bar prefix.
     bar_prefix: u8 = '|',
-    /// The progress bar suffix.
+    ///The progress bar suffix.
     bar_suffix: u8 = '|',
-    /// The charater to fill the progress bar with.
+    ///The charater to fill the progress bar with.
     bar_fill_char: u8 = '#',
-    /// Show the iteration count.
+    ///Show the iteration count.
     show_iterations: bool = false,
-    /// Show the percentage.
+    ///Show the percentage.
     show_percentage: bool = false,
-    /// Clear the line when the progress bar finishes.
+    ///Clear the line when the progress bar finishes.
     clear_on_finish: bool = false,
-    /// Write a newline when the progress bar finishes.
+    ///Write a newline when the progress bar finishes.
     write_newline_on_finish: bool = true,
+    ///Custom progress bar width.
+    ///If the width is greater than the terminal width, the terminal width will be used.
+    ///It is up to you to ensure you provide enough space to render the complete bar. If the bar is too small, calls to `render()` will error.
+    width: ?usize = null,
 };
 
 const ProgressBar = @This();
@@ -58,11 +67,8 @@ pub fn add(self: *ProgressBar, num: usize) void {
 
 ///Render the progress bar. The progress bar must have a `max_progress` greater than 0.
 pub fn render(self: *ProgressBar) !void {
-    if (self.max_progress == 0) {
-        return Error.MaxIsZero;
-    }
-
-    const winsize = try termsize.termSize(std.io.getStdOut());
+    const winsize = try termsize.termSize(std.io.getStdOut()) orelse termsize.TermSize{ .width = default_bar_width, .height = 0 };
+    const width = if (self.config.width) |w| @min(w, winsize.width) else winsize.width;
 
     self.mutex.lock();
     defer self.mutex.unlock();
@@ -72,6 +78,7 @@ pub fn render(self: *ProgressBar) !void {
     try self.clear();
 
     const percentage = @as(f32, @floatFromInt(self.current_progress)) / @as(f32, @floatFromInt(self.max_progress));
+    var padding: usize = 0;
 
     const extra_front_chars = brk: {
         var count: usize = 0;
@@ -91,14 +98,20 @@ pub fn render(self: *ProgressBar) !void {
         var count: usize = 0;
 
         if (self.config.show_iterations) {
+            padding += 2; // Add spacing after width.
             const num_len: usize = @intFromFloat(@ceil(@log10(@as(f32, @floatFromInt(self.max_progress + 1)))));
-            count += 8 + (num_len * 2); // [ {num_len} / {num_len} ]
-            try escape_codes.setCursorColumn(self.bw.writer(), winsize.?.width - count + 2);
+
+            count += 8 + (num_len * 2); // "[ {num_len} / {num_len} ]"
+            try escape_codes.setCursorColumn(self.bw.writer(), std.math.sub(usize, width + padding, count) catch return Error.BarTooSmall);
+
             _ = try self.bw.writer().print("[ {[curr]: >[padding]} / {[max]} ]\r", .{ .curr = self.current_progress, .padding = num_len, .max = self.max_progress });
         }
 
         break :brk count;
     };
+
+    const extra_chars = extra_front_chars + extra_back_chars + padding;
+    if (extra_chars > width) return Error.BarTooSmall;
 
     if (self.config.description) |desc| {
         try self.bw.writer().print("{s}", .{desc});
@@ -112,13 +125,13 @@ pub fn render(self: *ProgressBar) !void {
 
     _ = try self.bw.writer().writeByte(self.config.bar_prefix);
 
-    const range: usize = @intFromFloat(percentage * @as(f32, @floatFromInt(std.math.sub(usize, winsize.?.width, extra_front_chars + extra_back_chars) catch 0)));
+    const range: usize = @intFromFloat(percentage * @as(f32, @floatFromInt(std.math.sub(usize, width, extra_front_chars + extra_back_chars) catch 0)));
     for (0..range) |_| {
         _ = try self.bw.writer().writeByte(self.config.bar_fill_char);
     }
 
     try escape_codes.hideCursor(self.bw.writer());
-    try escape_codes.setCursorColumn(self.bw.writer(), winsize.?.width - extra_back_chars);
+    try escape_codes.setCursorColumn(self.bw.writer(), width - extra_back_chars);
 
     _ = try self.bw.writer().writeByte(self.config.bar_suffix);
 

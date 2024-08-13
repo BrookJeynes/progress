@@ -11,6 +11,7 @@ pub fn main() !void {
         .show_iterations = true,
         .show_percentage = true,
         .write_newline_on_finish = false,
+        .width = 60,
     });
     defer pb.clear() catch {};
 
