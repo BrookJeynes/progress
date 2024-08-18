@@ -1,7 +1,7 @@
 progress
 ========
 
-A simple thread safe progress bar.
+A simple thread safe progress bar and spinner library.
 
 Adding to your program
 ----------------------
@@ -17,15 +17,33 @@ Minimal example
 ---------------
 ```zig
 const std = @import("std");
-const ProgressBar = @import("progress");
+const ProgressBar = @import("progress").Bar;
+const ProgressSpinner = @import("progress").Spinner;
 
-pub fn main() !void {
+pub fn bar() !void {
     const stdout = std.io.getStdOut().writer();
     var pb = ProgressBar.init(10, stdout.any(), .{});
 
     while (!pb.isFinished()) {
         pb.add(1);
         try pb.render();
+
+        std.time.sleep(std.time.ns_per_ms * 150);
+    }
+}
+
+pub fn spinner() !void {
+    const stdout = std.io.getStdOut().writer();
+    var ps = ProgressSpinner.init(stdout.any(), .{
+        .symbols = ProgressSpinner.PredefinedSymbols.default,
+    });
+
+    var iterations: usize = 0;
+    while (!ps.isFinished()) {
+        iterations += 1;
+        try ps.render();
+
+        if (iterations == 20) try ps.finish();
 
         std.time.sleep(std.time.ns_per_ms * 150);
     }

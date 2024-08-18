@@ -1,5 +1,5 @@
 const std = @import("std");
-const ProgressBar = @import("progress");
+const ProgressBar = @import("progress").Bar;
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
@@ -18,6 +18,8 @@ pub fn main() !void {
     while (!pb.isFinished()) {
         pb.add(1);
         try pb.render();
+
+        if (pb.current_progress == 14) pb.update_description("Half way there");
 
         std.time.sleep(std.time.ns_per_ms * 150);
     }

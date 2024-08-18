@@ -1,5 +1,5 @@
 const std = @import("std");
-const ProgressBar = @import("progress");
+const ProgressBar = @import("progress").Bar;
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();

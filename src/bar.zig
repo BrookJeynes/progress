@@ -34,8 +34,9 @@ const Config = struct {
     width: ?usize = null,
 };
 
-const ProgressBar = @This();
+const Bar = @This();
 
+///Direct access is not thread safe. Use `currentProgress()` if you need thread safety.
 current_progress: usize = 0,
 max_progress: usize = 0,
 bw: std.io.BufferedWriter(4096, std.io.AnyWriter),
@@ -44,8 +45,8 @@ mutex: std.Thread.Mutex = std.Thread.Mutex{},
 ///Direct access is not thread safe. Use `isFinished()` if you need thread safety.
 finished: bool = false,
 
-pub fn init(max_progress: usize, writer: std.io.AnyWriter, config: Config) ProgressBar {
-    return ProgressBar{
+pub fn init(max_progress: usize, writer: std.io.AnyWriter, config: Config) Bar {
+    return Bar{
         .max_progress = max_progress,
         .bw = std.io.bufferedWriter(writer),
         .config = config,
@@ -54,7 +55,7 @@ pub fn init(max_progress: usize, writer: std.io.AnyWriter, config: Config) Progr
 
 ///Add `num` to the progress bar.
 ///If `num` is greater than `max_progress`, `current_progress` will be set to the max.
-pub fn add(self: *ProgressBar, num: usize) void {
+pub fn add(self: *Bar, num: usize) void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
@@ -65,8 +66,8 @@ pub fn add(self: *ProgressBar, num: usize) void {
     }
 }
 
-///Render the progress bar. The progress bar must have a `max_progress` greater than 0.
-pub fn render(self: *ProgressBar) !void {
+///Render the progress bar.
+pub fn render(self: *Bar) !void {
     const winsize = try termsize.termSize(std.io.getStdOut()) orelse termsize.TermSize{ .width = default_bar_width, .height = 0 };
     const width = if (self.config.width) |w| @min(w, winsize.width) else winsize.width;
 
@@ -114,7 +115,7 @@ pub fn render(self: *ProgressBar) !void {
     if (extra_chars > width) return Error.BarTooSmall;
 
     if (self.config.description) |desc| {
-        try self.bw.writer().print("{s}", .{desc});
+        _ = try self.bw.write(desc);
         try escape_codes.cursorForward(self.bw.writer(), 1);
     }
 
@@ -147,15 +148,23 @@ pub fn render(self: *ProgressBar) !void {
 }
 
 ///Returns `true` if the progress bar is finished and `false` otherwise.
-pub fn isFinished(self: *ProgressBar) bool {
+pub fn isFinished(self: *Bar) bool {
     self.mutex.lock();
     defer self.mutex.unlock();
 
     return self.current_progress >= self.max_progress or self.finished;
 }
 
+///Returns the current progress.
+pub fn currentProgress(self: *Bar) usize {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    return self.current_progress;
+}
+
 ///Finish the progress bar.
-pub fn finish(self: *ProgressBar) void {
+pub fn finish(self: *Bar) !void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
@@ -167,7 +176,7 @@ pub fn finish(self: *ProgressBar) void {
 }
 
 ///Reset the progress bar.
-pub fn reset(self: *ProgressBar) void {
+pub fn reset(self: *Bar) void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
@@ -179,7 +188,7 @@ pub fn reset(self: *ProgressBar) void {
 ///
 ///If `num` is equal to `max_progress`, `finished` is set true.
 ///If `num` is greater than `max_progress`, `current_progress` will be set to the max.
-pub fn set(self: *ProgressBar, num: usize) void {
+pub fn set(self: *Bar, num: usize) void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
@@ -193,7 +202,7 @@ pub fn set(self: *ProgressBar, num: usize) void {
 }
 
 ///Update the description.
-pub fn update_description(self: *ProgressBar, description: []const u8) void {
+pub fn update_description(self: *Bar, description: []const u8) void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
@@ -203,7 +212,7 @@ pub fn update_description(self: *ProgressBar, description: []const u8) void {
 ///Clear the progress bar.
 ///
 ///This function is not thread safe.
-pub fn clear(self: *ProgressBar) !void {
+pub fn clear(self: *Bar) !void {
     try escape_codes.clearCurrentLine(self.bw.writer());
     try escape_codes.setCursorColumn(self.bw.writer(), 0);
     try self.bw.flush();

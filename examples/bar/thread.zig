@@ -1,5 +1,5 @@
 const std = @import("std");
-const ProgressBar = @import("progress");
+const ProgressBar = @import("progress").Bar;
 
 pub fn threadWorker(bar: *ProgressBar, seed: usize) !void {
     var rand_impl = std.rand.DefaultPrng.init(seed);
