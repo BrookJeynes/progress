@@ -1,20 +1,19 @@
-progress
-========
+# progress
 
 A simple thread safe progress bar and spinner library.
 
-Adding to your program
-----------------------
-1. Fetch the package.
+![Recording](https://github.com/user-attachments/assets/227297c4-15a5-4c68-a8bc-49d7e1505a79)
+
+## Adding to your program
+1. Fetch the package.  
     `zig fetch --save git+https://github.com/BrookJeynes/progress`
 2. Add to your `build.zig`.
-    ```
+    ```zig
     const progress = b.dependency("progress", .{}).module("progress");
     exe.root_module.addImport("progress", progress);
     ```
 
-Minimal example
----------------
+## Minimal example
 ```zig
 const std = @import("std");
 const ProgressBar = @import("progress").Bar;
@@ -50,10 +49,9 @@ pub fn spinner() !void {
 }
 ```
 
-You can find more examples in the `examples/` folder.
+You can find more examples in the `examples/` folder.  
 For more information, see the source code or documentation (`zig build docs`).
 
-Contributing
------------
+## Contributing
 Contributions, issues, and feature requests are always welcome! This project is 
 using the latest stable release of Zig (0.13.0).
