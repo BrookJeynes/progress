@@ -41,7 +41,7 @@ pub fn init(writer: std.io.AnyWriter, config: Config) Spinner {
     };
 }
 
-///Render the progress spinner.
+///Render the progress spinner and advance a visual cycle.
 pub fn render(self: *Spinner) !void {
     self.mutex.lock();
     defer self.mutex.unlock();
