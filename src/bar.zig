@@ -202,7 +202,7 @@ pub fn set(self: *Bar, num: usize) void {
 }
 
 ///Update the description.
-pub fn update_description(self: *Bar, description: []const u8) void {
+pub fn updateDescription(self: *Bar, description: []const u8) void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
