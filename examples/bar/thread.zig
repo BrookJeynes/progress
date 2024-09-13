@@ -2,7 +2,7 @@ const std = @import("std");
 const ProgressBar = @import("progress").Bar;
 
 pub fn threadWorker(bar: *ProgressBar, seed: usize) !void {
-    var rand_impl = std.rand.DefaultPrng.init(seed);
+    var rand_impl = std.Random.DefaultPrng.init(seed);
     const num = @mod(rand_impl.random().int(u64), 1000);
 
     for (0..5) |_| {
