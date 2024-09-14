@@ -19,7 +19,7 @@ pub fn main() !void {
         pb.add(1);
         try pb.render();
 
-        if (pb.current_progress == 14) pb.update_description("Half way there");
+        if (pb.current_progress == 14) pb.updateDescription("Half way there");
 
         std.time.sleep(std.time.ns_per_ms * 150);
     }
