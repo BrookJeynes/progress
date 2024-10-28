@@ -15,11 +15,11 @@ const Config = struct {
     ///Progress bar description.
     description: ?[]const u8 = null,
     ///The progress bar prefix.
-    bar_prefix: u8 = '|',
+    bar_prefix: u21 = '|',
     ///The progress bar suffix.
-    bar_suffix: u8 = '|',
+    bar_suffix: u21 = '|',
     ///The charater to fill the progress bar with.
-    bar_fill_char: u8 = '#',
+    bar_fill_char: u21 = '#',
     ///Show the iteration count.
     show_iterations: bool = false,
     ///Show the percentage.
@@ -70,6 +70,7 @@ pub fn add(self: *Bar, num: usize) void {
 pub fn render(self: *Bar) !void {
     const winsize = try termsize.termSize(std.io.getStdOut()) orelse termsize.TermSize{ .width = default_bar_width, .height = 0 };
     const width = if (self.config.width) |w| @min(w, winsize.width) else winsize.width;
+    var unicode_conversion_buf: [8]u8 = undefined;
 
     self.mutex.lock();
     defer self.mutex.unlock();
@@ -124,17 +125,20 @@ pub fn render(self: *Bar) !void {
         try escape_codes.cursorForward(self.bw.writer(), 1);
     }
 
-    _ = try self.bw.writer().writeByte(self.config.bar_prefix);
+    const prefix_bytes = try std.unicode.utf8Encode(self.config.bar_prefix, &unicode_conversion_buf);
+    _ = try self.bw.write(unicode_conversion_buf[0..prefix_bytes]);
 
     const range: usize = @intFromFloat(percentage * @as(f32, @floatFromInt(std.math.sub(usize, width, extra_front_chars + extra_back_chars) catch 0)));
     for (0..range) |_| {
-        _ = try self.bw.writer().writeByte(self.config.bar_fill_char);
+        const fill_char_bytes = try std.unicode.utf8Encode(self.config.bar_fill_char, &unicode_conversion_buf);
+        _ = try self.bw.write(unicode_conversion_buf[0..fill_char_bytes]);
     }
 
     try escape_codes.hideCursor(self.bw.writer());
     try escape_codes.setCursorColumn(self.bw.writer(), width - extra_back_chars);
 
-    _ = try self.bw.writer().writeByte(self.config.bar_suffix);
+    const suffix_bytes = try std.unicode.utf8Encode(self.config.bar_suffix, &unicode_conversion_buf);
+    _ = try self.bw.write(unicode_conversion_buf[0..suffix_bytes]);
 
     if (self.current_progress >= self.max_progress and !self.finished) {
         self.finished = true;

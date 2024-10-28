@@ -54,6 +54,8 @@ fn renderComplete(self: *Spinner, completion_char: u21) !void {
         _ = try self.bw.write(desc);
     }
 
+    if (self.config.clear_on_finish) try self.clear();
+
     try self.bw.flush();
 }
 
