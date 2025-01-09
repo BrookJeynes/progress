@@ -1,6 +1,6 @@
 const std = @import("std");
 const termsize = @import("termsize.zig");
-const escape_codes = @import("escape_codes.zig");
+const ansi_term = @import("ansi-term.zig");
 
 pub const PredefinedSymbols = enum {
     ///- \ | /
@@ -50,7 +50,7 @@ fn renderComplete(self: *Spinner, completion_char: u21) !void {
     _ = try self.bw.write(buf[0..bytes]);
 
     if (self.config.description) |desc| {
-        try escape_codes.cursorForward(self.bw.writer(), 1);
+        try ansi_term.cursorForward(self.bw.writer(), 1);
         _ = try self.bw.write(desc);
     }
 
@@ -67,14 +67,14 @@ pub fn render(self: *Spinner) !void {
     if (self.finished) return;
 
     try self.clear();
-    try escape_codes.hideCursor(self.bw.writer());
+    try ansi_term.hideCursor(self.bw.writer());
 
     var buf: [8]u8 = undefined;
     const bytes = try std.unicode.utf8Encode(self.config.symbols[self.current_symbol_idx], &buf);
     _ = try self.bw.write(buf[0..bytes]);
 
     if (self.config.description) |desc| {
-        try escape_codes.cursorForward(self.bw.writer(), 1);
+        try ansi_term.cursorForward(self.bw.writer(), 1);
         _ = try self.bw.write(desc);
     }
 
@@ -104,7 +104,7 @@ pub fn finish(self: *Spinner) !void {
     if (self.config.clear_on_finish) try self.clear();
     if (self.config.write_newline_on_finish) _ = try self.bw.write("\n");
 
-    try escape_codes.showCursor(self.bw.writer());
+    try ansi_term.showCursor(self.bw.writer());
     try self.bw.flush();
 }
 
@@ -135,7 +135,7 @@ pub fn updateDescriptionNewline(self: *Spinner, description: []const u8) !void {
 ///
 ///This function is not thread safe.
 pub fn clear(self: *Spinner) !void {
-    try escape_codes.clearCurrentLine(self.bw.writer());
-    try escape_codes.setCursorColumn(self.bw.writer(), 0);
+    try ansi_term.clearCurrentLine(self.bw.writer());
+    try ansi_term.setCursorColumn(self.bw.writer(), 0);
     try self.bw.flush();
 }
