@@ -19,7 +19,8 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
-// https://github.com/softprops/zig-termsize
+// Repo: https://github.com/softprops/zig-termsize
+// Modifications made by Brook Jeynes (https://github.com/brookjeynes)
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -68,7 +69,7 @@ pub fn termSize(file: std.fs.File) !?TermSize {
             };
         },
         .linux, .macos => blk: {
-            var buf: std.posix.system.winsize = undefined;
+            var buf: std.posix.winsize = undefined;
             break :blk switch (std.posix.errno(
                 std.posix.system.ioctl(
                     file.handle,
@@ -77,8 +78,8 @@ pub fn termSize(file: std.fs.File) !?TermSize {
                 ),
             )) {
                 .SUCCESS => TermSize{
-                    .width = buf.ws_col,
-                    .height = buf.ws_row,
+                    .width = buf.col,
+                    .height = buf.row,
                 },
                 else => error.IoctlError,
             };

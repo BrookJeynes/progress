@@ -20,7 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-// https://github.com/ziglibs/ansi-term
+// Repo: https://github.com/ziglibs/ansi-term
 
 const std = @import("std");
 
