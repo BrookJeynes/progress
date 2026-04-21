@@ -58,4 +58,4 @@ For more information, see the source code or documentation (`zig build docs`).
 
 ## Contributing
 Contributions, issues, and feature requests are always welcome! This project is 
-using the latest stable release of Zig (0.14.0).
+using the latest stable release of Zig (0.16.0).

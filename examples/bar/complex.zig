@@ -1,10 +1,11 @@
 const std = @import("std");
 const ProgressBar = @import("progress").Bar;
 
-pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
+pub fn main(init: std.process.Init) !void {
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buf);
 
-    var pb1 = ProgressBar.init(28, stdout.any(), .{
+    var pb1 = ProgressBar.init(28, &stdout_writer, .{
         .bar_prefix = '[',
         .bar_suffix = ']',
         .bar_fill_char = '=',
@@ -15,7 +16,7 @@ pub fn main() !void {
     });
     pb1.setColour(.Blue);
 
-    var pb2 = ProgressBar.init(15, stdout.any(), .{
+    var pb2 = ProgressBar.init(15, &stdout_writer, .{
         .bar_prefix = '|',
         .bar_suffix = '|',
         .bar_fill_char = '━',
@@ -39,7 +40,7 @@ pub fn main() !void {
                 if (pb.current_progress == 14) pb.updateDescription("Bar 1: nearly there");
             }
 
-            std.time.sleep(std.time.ns_per_ms * 150);
+            try std.Io.sleep(init.io, std.Io.Duration.fromMilliseconds(150), .awake);
         }
     }
 }

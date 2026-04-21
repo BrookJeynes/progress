@@ -24,7 +24,6 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const io = std.io;
 const os = std.os;
 
 /// Terminal size dimensions
@@ -35,23 +34,22 @@ pub const TermSize = struct {
     height: u16,
 };
 
-/// supports windows, linux, macos
-///
 /// ## example
 ///
 /// ```zig
 /// const std = @import("std");
-/// const termSize = @import("termSize");
+/// const termSize = @import("termsize");
 ///
-/// fn main() !void {
+/// fn main(init: std.process.Init) !void {
 ///   std.debug.print(
 ///     "{any}",
-///     termSize.termSize(std.os.getStdOut()),
+///     termSize.termSize(std.Io.File.stdout(), init.io),
 ///   );
 /// }
 /// ```
-pub fn termSize(file: std.fs.File) !?TermSize {
-    if (!file.supportsAnsiEscapeCodes()) {
+pub fn termSize(file: std.Io.File, io: std.Io) !?TermSize {
+    const supports_ansi = file.supportsAnsiEscapeCodes(io) catch return null;
+    if (!supports_ansi) {
         return null;
     }
     return switch (builtin.os.tag) {

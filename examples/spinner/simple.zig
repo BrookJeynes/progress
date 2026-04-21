@@ -1,9 +1,10 @@
 const std = @import("std");
 const ProgressSpinner = @import("progress").Spinner;
 
-pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
-    var ps = ProgressSpinner.init(stdout.any(), .{
+pub fn main(init: std.process.Init) !void {
+    var stdout_buf: [4096]u8 = undefined;
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buf);
+    var ps = ProgressSpinner.init(&stdout_writer, .{
         .symbols = ProgressSpinner.PredefinedSymbols.default,
     });
 
@@ -14,6 +15,6 @@ pub fn main() !void {
 
         if (iterations == 20) try ps.finish();
 
-        std.time.sleep(std.time.ns_per_ms * 150);
+        try std.Io.sleep(init.io, std.Io.Duration.fromMilliseconds(150), .awake);
     }
 }

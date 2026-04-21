@@ -3,7 +3,6 @@ const termsize = @import("termsize.zig");
 const ansi_term = @import("ansi-term.zig");
 
 const Error = error{
-    FailedToRender,
     ///Used when the progress bar is too small to render all the content.
     BarTooSmall,
 };
@@ -41,9 +40,9 @@ const Bar = @This();
 ///Direct access is not thread safe. Use `currentProgress()` if you need thread safety.
 current_progress: usize = 0,
 max_progress: usize = 0,
-bw: std.io.BufferedWriter(4096, std.io.AnyWriter),
+writer: *std.Io.File.Writer,
 config: Config,
-mutex: std.Thread.Mutex = std.Thread.Mutex{},
+mutex: std.Io.Mutex = std.Io.Mutex.init,
 ///Direct access is not thread safe. Use `isFinished()` if you need thread safety.
 finished: bool = false,
 ///The progress bar foreground colour.
@@ -51,10 +50,10 @@ colour: ansi_term.Colour = .Default,
 ///The progress bar background colour.
 bg_colour: ansi_term.Colour = .Default,
 
-pub fn init(max_progress: usize, writer: std.io.AnyWriter, config: Config) Bar {
+pub fn init(max_progress: usize, writer: *std.Io.File.Writer, config: Config) Bar {
     return Bar{
         .max_progress = max_progress,
-        .bw = std.io.bufferedWriter(writer),
+        .writer = writer,
         .config = config,
     };
 }
@@ -62,8 +61,8 @@ pub fn init(max_progress: usize, writer: std.io.AnyWriter, config: Config) Bar {
 ///Add `num` to the progress bar.
 ///If `num` is greater than `max_progress`, `current_progress` will be set to the max.
 pub fn add(self: *Bar, num: usize) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     if (self.current_progress + num < self.max_progress) {
         self.current_progress += num;
@@ -74,12 +73,12 @@ pub fn add(self: *Bar, num: usize) void {
 
 ///Render the progress bar.
 pub fn render(self: *Bar) !void {
-    const winsize = try termsize.termSize(std.io.getStdOut()) orelse termsize.TermSize{ .width = default_bar_width, .height = 0 };
+    const winsize = try termsize.termSize(std.Io.File.stdout(), self.writer.io) orelse termsize.TermSize{ .width = default_bar_width, .height = 0 };
     const width = if (self.config.width) |w| @min(w, winsize.width) else winsize.width;
     var unicode_conversion_buf: [8]u8 = undefined;
 
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    try self.mutex.lock(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     if (self.finished) return;
 
@@ -110,9 +109,9 @@ pub fn render(self: *Bar) !void {
             const num_len: usize = @intFromFloat(@ceil(@log10(@as(f32, @floatFromInt(self.max_progress + 1)))));
 
             count += 8 + (num_len * 2); // "[ {num_len} / {num_len} ]"
-            try ansi_term.setCursorColumn(self.bw.writer(), std.math.sub(usize, width + padding, count) catch return Error.BarTooSmall);
+            try ansi_term.setCursorColumn(&self.writer.interface, std.math.sub(usize, width + padding, count) catch return Error.BarTooSmall);
 
-            _ = try self.bw.writer().print("[ {[curr]: >[padding]} / {[max]} ]\r", .{ .curr = self.current_progress, .padding = num_len, .max = self.max_progress });
+            try self.writer.interface.print("[ {[curr]: >[padding]} / {[max]} ]\r", .{ .curr = self.current_progress, .padding = num_len, .max = self.max_progress });
         }
 
         break :brk count;
@@ -122,118 +121,118 @@ pub fn render(self: *Bar) !void {
     if (extra_chars > width) return Error.BarTooSmall;
 
     if (self.config.description) |desc| {
-        _ = try self.bw.write(desc);
-        try ansi_term.cursorForward(self.bw.writer(), 1);
+        try self.writer.interface.writeAll(desc);
+        try ansi_term.cursorForward(&self.writer.interface, 1);
     }
 
     if (self.config.show_percentage) {
-        try self.bw.writer().print("{d: >3}%", .{@as(u32, @intFromFloat(percentage * 100))});
-        try ansi_term.cursorForward(self.bw.writer(), 1);
+        try self.writer.interface.print("{d: >3}%", .{@as(u32, @intFromFloat(percentage * 100))});
+        try ansi_term.cursorForward(&self.writer.interface, 1);
     }
 
     const prefix_bytes = try std.unicode.utf8Encode(self.config.bar_prefix, &unicode_conversion_buf);
-    _ = try self.bw.write(unicode_conversion_buf[0..prefix_bytes]);
+    try self.writer.interface.writeAll(unicode_conversion_buf[0..prefix_bytes]);
 
     const max_percentage_pos: usize = std.math.sub(usize, width, extra_front_chars + extra_back_chars) catch 0;
     const current_percentage_pos: usize = @intFromFloat(percentage * @as(f32, @floatFromInt(std.math.sub(usize, width, extra_front_chars + extra_back_chars) catch 0)));
     for (0..max_percentage_pos) |write_pos| {
         if (write_pos > current_percentage_pos) {
             if (self.config.show_background) {
-                try ansi_term.writeColour(self.bw.writer(), self.bg_colour);
+                try ansi_term.writeColour(&self.writer.interface, self.bg_colour);
                 const fill_char_bytes = try std.unicode.utf8Encode(self.config.bar_fill_char, &unicode_conversion_buf);
-                _ = try self.bw.write(unicode_conversion_buf[0..fill_char_bytes]);
-                try ansi_term.resetColour(self.bw.writer());
+                try self.writer.interface.writeAll(unicode_conversion_buf[0..fill_char_bytes]);
+                try ansi_term.resetColour(&self.writer.interface);
             }
             continue;
         }
 
-        try ansi_term.writeColour(self.bw.writer(), self.colour);
+        try ansi_term.writeColour(&self.writer.interface, self.colour);
         const fill_char_bytes = try std.unicode.utf8Encode(self.config.bar_fill_char, &unicode_conversion_buf);
-        _ = try self.bw.write(unicode_conversion_buf[0..fill_char_bytes]);
-        try ansi_term.resetColour(self.bw.writer());
+        try self.writer.interface.writeAll(unicode_conversion_buf[0..fill_char_bytes]);
+        try ansi_term.resetColour(&self.writer.interface);
     }
 
-    try ansi_term.hideCursor(self.bw.writer());
-    try ansi_term.setCursorColumn(self.bw.writer(), width - extra_back_chars);
+    try ansi_term.hideCursor(&self.writer.interface);
+    try ansi_term.setCursorColumn(&self.writer.interface, width - extra_back_chars);
 
     const suffix_bytes = try std.unicode.utf8Encode(self.config.bar_suffix, &unicode_conversion_buf);
-    _ = try self.bw.write(unicode_conversion_buf[0..suffix_bytes]);
+    try self.writer.interface.writeAll(unicode_conversion_buf[0..suffix_bytes]);
 
     if (self.current_progress >= self.max_progress and !self.finished) {
         self.finished = true;
 
         if (self.config.clear_on_finish) try self.clear();
-        if (self.config.write_newline_on_finish) _ = try self.bw.write("\n");
-        try ansi_term.showCursor(self.bw.writer());
+        if (self.config.write_newline_on_finish) try self.writer.interface.writeAll("\n");
+        try ansi_term.showCursor(&self.writer.interface);
     }
 
-    try self.bw.flush();
+    try self.writer.interface.flush();
 }
 
 ///Set the progress bar colour.
 pub fn setColour(self: *Bar, colour: ansi_term.Colour) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.colour = colour;
 }
 
 ///Set the progress bar background colour.
 pub fn setBgColour(self: *Bar, colour: ansi_term.Colour) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.bg_colour = colour;
 }
 
 ///Show the progress bar background.
 pub fn showBg(self: *Bar) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.config.show_background = true;
 }
 
 ///Hide the progress bar background.
 pub fn hideBg(self: *Bar) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.config.show_background = false;
 }
 
 ///Returns `true` if the progress bar is finished and `false` otherwise.
 pub fn isFinished(self: *Bar) bool {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     return self.current_progress >= self.max_progress or self.finished;
 }
 
 ///Returns the current progress.
 pub fn currentProgress(self: *Bar) usize {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     return self.current_progress;
 }
 
 ///Finish the progress bar.
 pub fn finish(self: *Bar) !void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    try self.mutex.lock(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.finished = true;
     self.current_progress = self.max_progress;
 
-    try ansi_term.showCursor(self.bw.writer());
-    try self.bw.flush();
+    try ansi_term.showCursor(&self.writer.interface);
+    try self.writer.interface.flush();
 }
 
 ///Reset the progress bar.
 pub fn reset(self: *Bar) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.finished = false;
     self.current_progress = 0;
@@ -244,8 +243,8 @@ pub fn reset(self: *Bar) void {
 ///If `num` is equal to `max_progress`, `finished` is set true.
 ///If `num` is greater than `max_progress`, `current_progress` will be set to the max.
 pub fn set(self: *Bar, num: usize) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     if (num >= self.max_progress) {
         self.finished = true;
@@ -258,8 +257,8 @@ pub fn set(self: *Bar, num: usize) void {
 
 ///Update the description.
 pub fn updateDescription(self: *Bar, description: []const u8) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.config.description = description;
 }
@@ -268,7 +267,7 @@ pub fn updateDescription(self: *Bar, description: []const u8) void {
 ///
 ///This function is not thread safe.
 pub fn clear(self: *Bar) !void {
-    try ansi_term.clearCurrentLine(self.bw.writer());
-    try ansi_term.setCursorColumn(self.bw.writer(), 0);
-    try self.bw.flush();
+    try ansi_term.clearCurrentLine(&self.writer.interface);
+    try ansi_term.setCursorColumn(&self.writer.interface, 0);
+    try self.writer.interface.flush();
 }

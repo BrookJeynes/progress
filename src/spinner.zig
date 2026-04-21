@@ -1,5 +1,4 @@
 const std = @import("std");
-const termsize = @import("termsize.zig");
 const ansi_term = @import("ansi-term.zig");
 
 pub const PredefinedSymbols = enum {
@@ -29,16 +28,16 @@ const Config = struct {
 
 const Spinner = @This();
 
-bw: std.io.BufferedWriter(4096, std.io.AnyWriter),
+writer: *std.Io.File.Writer,
 config: Config,
-mutex: std.Thread.Mutex = std.Thread.Mutex{},
+mutex: std.Io.Mutex = std.Io.Mutex.init,
 ///Direct access is not thread safe. Use `isFinished()` if you need thread safety.
 finished: bool = false,
 current_symbol_idx: usize = 0,
 
-pub fn init(writer: std.io.AnyWriter, config: Config) Spinner {
+pub fn init(writer: *std.Io.File.Writer, config: Config) Spinner {
     return Spinner{
-        .bw = std.io.bufferedWriter(writer),
+        .writer = writer,
         .config = config,
     };
 }
@@ -47,53 +46,53 @@ fn renderComplete(self: *Spinner, completion_char: u21) !void {
     try self.clear();
     var buf: [8]u8 = undefined;
     const bytes = try std.unicode.utf8Encode(completion_char, &buf);
-    _ = try self.bw.write(buf[0..bytes]);
+    try self.writer.interface.writeAll(buf[0..bytes]);
 
     if (self.config.description) |desc| {
-        try ansi_term.cursorForward(self.bw.writer(), 1);
-        _ = try self.bw.write(desc);
+        try ansi_term.cursorForward(&self.writer.interface, 1);
+        try self.writer.interface.writeAll(desc);
     }
 
     if (self.config.clear_on_finish) try self.clear();
 
-    try self.bw.flush();
+    try self.writer.interface.flush();
 }
 
 ///Render the progress spinner and advance a visual cycle.
 pub fn render(self: *Spinner) !void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    try self.mutex.lock(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     if (self.finished) return;
 
     try self.clear();
-    try ansi_term.hideCursor(self.bw.writer());
+    try ansi_term.hideCursor(&self.writer.interface);
 
     var buf: [8]u8 = undefined;
     const bytes = try std.unicode.utf8Encode(self.config.symbols[self.current_symbol_idx], &buf);
-    _ = try self.bw.write(buf[0..bytes]);
+    try self.writer.interface.writeAll(buf[0..bytes]);
 
     if (self.config.description) |desc| {
-        try ansi_term.cursorForward(self.bw.writer(), 1);
-        _ = try self.bw.write(desc);
+        try ansi_term.cursorForward(&self.writer.interface, 1);
+        try self.writer.interface.writeAll(desc);
     }
 
-    try self.bw.flush();
+    try self.writer.interface.flush();
     self.current_symbol_idx = (self.current_symbol_idx + 1) % self.config.symbols.len;
 }
 
 ///Returns `true` if the progress spinner is finished and `false` otherwise.
 pub fn isFinished(self: *Spinner) bool {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     return self.finished;
 }
 
 ///Finish the progress spinner.
 pub fn finish(self: *Spinner) !void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    try self.mutex.lock(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.finished = true;
 
@@ -102,24 +101,24 @@ pub fn finish(self: *Spinner) !void {
     }
 
     if (self.config.clear_on_finish) try self.clear();
-    if (self.config.write_newline_on_finish) _ = try self.bw.write("\n");
+    if (self.config.write_newline_on_finish) try self.writer.interface.writeAll("\n");
 
-    try ansi_term.showCursor(self.bw.writer());
-    try self.bw.flush();
+    try ansi_term.showCursor(&self.writer.interface);
+    try self.writer.interface.flush();
 }
 
 ///Update the description.
 pub fn updateDescription(self: *Spinner, description: []const u8) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    self.mutex.lockUncancelable(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     self.config.description = description;
 }
 
 ///Update the description and continue the spinner on a newline.
 pub fn updateDescriptionNewline(self: *Spinner, description: []const u8) !void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    try self.mutex.lock(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
 
     if (self.config.completion_character) |char| {
         try self.renderComplete(char);
@@ -127,15 +126,15 @@ pub fn updateDescriptionNewline(self: *Spinner, description: []const u8) !void {
 
     self.config.description = description;
 
-    _ = try self.bw.write("\n");
-    try self.bw.flush();
+    try self.writer.interface.writeAll("\n");
+    try self.writer.interface.flush();
 }
 
 ///Clear the progress spinner.
 ///
 ///This function is not thread safe.
 pub fn clear(self: *Spinner) !void {
-    try ansi_term.clearCurrentLine(self.bw.writer());
-    try ansi_term.setCursorColumn(self.bw.writer(), 0);
-    try self.bw.flush();
+    try ansi_term.clearCurrentLine(&self.writer.interface);
+    try ansi_term.setCursorColumn(&self.writer.interface, 0);
+    try self.writer.interface.flush();
 }

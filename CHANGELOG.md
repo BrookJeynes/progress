@@ -1,5 +1,8 @@
 # Changelog
 
+## v2.0.0 (2026-04-22)
+- chore: Update project to Zig v0.16.0
+
 ## v1.2.1 (2025-03-26)
 - chore: Update project to Zig v0.14.0
 

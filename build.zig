@@ -1,22 +1,24 @@
 const std = @import("std");
 
+const name = "progress";
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const progress = b.addModule("progress", .{
+    const mod = b.addModule(name, .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
+    const progress = b.addLibrary(.{
+        .name = name,
+        .root_module = mod,
+    });
+
     const docs = b.addInstallDirectory(.{
-        .source_dir = b.addStaticLibrary(.{
-            .name = "progress",
-            .root_source_file = b.path("src/root.zig"),
-            .target = target,
-            .optimize = optimize,
-        }).getEmittedDocs(),
+        .source_dir = progress.getEmittedDocs(),
         .install_dir = .prefix,
         .install_subdir = "docs",
     });
@@ -28,11 +30,13 @@ pub fn build(b: *std.Build) void {
         const run_step = b.step(b.fmt("run-bar-{s}", .{example}), b.fmt("Run bar/{s}.zig example", .{example}));
         const exe = b.addExecutable(.{
             .name = example,
-            .root_source_file = b.path(b.fmt("examples/bar/{s}.zig", .{example})),
-            .target = target,
-            .optimize = optimize,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(b.fmt("examples/bar/{s}.zig", .{example})),
+                .target = target,
+                .optimize = optimize,
+            }),
         });
-        exe.root_module.addImport("progress", progress);
+        exe.root_module.addImport(name, mod);
 
         const run_cmd = b.addRunArtifact(exe);
         run_cmd.step.dependOn(&b.addInstallArtifact(exe, .{}).step);
@@ -48,11 +52,13 @@ pub fn build(b: *std.Build) void {
         const run_step = b.step(b.fmt("run-spinner-{s}", .{example}), b.fmt("Run spinner/{s}.zig example", .{example}));
         const exe = b.addExecutable(.{
             .name = example,
-            .root_source_file = b.path(b.fmt("examples/spinner/{s}.zig", .{example})),
-            .target = target,
-            .optimize = optimize,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(b.fmt("examples/spinner/{s}.zig", .{example})),
+                .target = target,
+                .optimize = optimize,
+            }),
         });
-        exe.root_module.addImport("progress", progress);
+        exe.root_module.addImport(name, mod);
 
         const run_cmd = b.addRunArtifact(exe);
         run_cmd.step.dependOn(&b.addInstallArtifact(exe, .{}).step);
