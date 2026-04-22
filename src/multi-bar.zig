@@ -80,3 +80,82 @@ pub const MultiBar = struct {
         self.active_line = newly_active;
     }
 };
+
+pub fn MultiBarStatic(comptime max_bars: usize) type {
+    return struct {
+        const Self = @This();
+
+        bars: [max_bars]Bar,
+        len: usize,
+        writer: *std.Io.File.Writer,
+        mutex: std.Io.Mutex,
+        active_lines: usize = 0,
+
+        pub fn init(writer: *std.Io.File.Writer) Self {
+            return .{
+                .bars = undefined,
+                .len = 0,
+                .writer = writer,
+                .mutex = std.Io.Mutex.init,
+                .active_lines = 0,
+            };
+        }
+
+        pub fn addBar(self: *Self, max_progress: usize, config: Config) !*Bar {
+            if (self.len >= max_bars) return error.TooMAnyBars;
+
+            var safe_config = config;
+            safe_config.write_newline_on_finish = false;
+
+            self.bars[self.len] = Bar.init(max_progress, self.writer, safe_config);
+            const new_pb = &self.bars[self.len];
+            self.len += 1;
+
+            try self.writer.interface.writeAll("\n");
+            self.active_lines += 1;
+
+            return new_pb;
+        }
+
+        pub fn render(self: *Self) !void {
+            self.mutex.lockUncancelable(self.writer.io);
+            defer self.mutex.unlock(self.writer.io);
+
+            if (self.active_lines == 0) return;
+
+            try ansi_term.cursorUp(&self.writer.interface, self.active_lines);
+
+            var newly_active: usize = 0;
+
+            for (self.bars[0..self.len]) |*pb| {
+                if (pb.isFinished() and pb.config.clear_on_finish) {
+                    continue;
+                }
+
+                try ansi_term.clearCurrentLine(&self.writer.interface);
+                try pb.render();
+
+                try ansi_term.cursorDown(&self.writer.interface, 1);
+                try ansi_term.setCursorColumn(&self.writer.interface, 0);
+
+                newly_active += 1;
+            }
+
+            if (newly_active < self.active_lines) {
+                const diff = self.active_lines - newly_active;
+                for (0..diff) |_| {
+                    try ansi_term.clearCurrentLine(&self.writer.interface);
+                    try ansi_term.cursorDown(&self.writer.interface, 1);
+                }
+                try ansi_term.cursorUp(&self.writer.interface, diff);
+            }
+
+            self.active_lines = newly_active;
+        }
+
+        pub fn deinit(self: *Self) void {
+            ansi_term.showCursor(&self.writer.interface) catch {};
+            self.writer.interface.flush() catch {};
+        }
+    };
+}

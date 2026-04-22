@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) void {
     const docs_step = b.step("docs", "Generate docs");
     docs_step.dependOn(&docs.step);
 
-    for ([_][]const u8{ "simple", "complex", "thread", "multibar" }) |example| {
+    for ([_][]const u8{ "simple", "complex", "thread", "multibar", "multibar-static" }) |example| {
         const run_step = b.step(b.fmt("run-bar-{s}", .{example}), b.fmt("Run bar/{s}.zig example", .{example}));
         const exe = b.addExecutable(.{
             .name = example,
