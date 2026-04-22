@@ -1,7 +1,7 @@
 const std = @import("std");
 const ansi_term = @import("ansi-term.zig");
 
-pub const PredefinedSymbols = enum {
+pub const PredefinedSymbols = struct {
     ///- \ | /
     pub const default: []const u21 = &[_]u21{ '-', '\\', '|', '/' };
     ///⎺ ⎻ ⎼ ⎽ ⎼ ⎻
