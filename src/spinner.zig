@@ -53,8 +53,6 @@ fn renderComplete(self: *Spinner, completion_char: u21) !void {
         try self.writer.interface.writeAll(desc);
     }
 
-    if (self.config.clear_on_finish) try self.clear();
-
     try self.writer.interface.flush();
 }
 
