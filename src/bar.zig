@@ -73,12 +73,12 @@ pub fn add(self: *Bar, num: usize) void {
 
 ///Render the progress bar.
 pub fn render(self: *Bar) !void {
+    try self.mutex.lock(self.writer.io);
+    defer self.mutex.unlock(self.writer.io);
+
     const winsize = try termsize.termSize(std.Io.File.stdout(), self.writer.io) orelse termsize.TermSize{ .width = default_bar_width, .height = 0 };
     const width = if (self.config.width) |w| @min(w, winsize.width) else winsize.width;
     var unicode_conversion_buf: [8]u8 = undefined;
-
-    try self.mutex.lock(self.writer.io);
-    defer self.mutex.unlock(self.writer.io);
 
     if (self.finished) return;
 
@@ -134,7 +134,7 @@ pub fn render(self: *Bar) !void {
     try self.writer.interface.writeAll(unicode_conversion_buf[0..prefix_bytes]);
 
     const max_percentage_pos: usize = std.math.sub(usize, width, extra_front_chars + extra_back_chars) catch 0;
-    const current_percentage_pos: usize = @intFromFloat(percentage * @as(f32, @floatFromInt(std.math.sub(usize, width, extra_front_chars + extra_back_chars) catch 0)));
+    const current_percentage_pos: usize = @intFromFloat(percentage * @as(f32, @floatFromInt(max_percentage_pos)));
     for (0..max_percentage_pos) |write_pos| {
         if (write_pos > current_percentage_pos) {
             if (self.config.show_background) {

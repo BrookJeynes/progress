@@ -71,7 +71,7 @@ pub fn cursorForward(writer: anytype, columns: usize) !void {
 
 pub fn writeColour(writer: anytype, colour: Colour) !void {
     try writer.writeAll(csi);
-    _ = switch (colour) {
+    switch (colour) {
         .Default => try writer.writeAll("39"),
         .Black => try writer.writeAll("30"),
         .Red => try writer.writeAll("31"),
@@ -84,7 +84,7 @@ pub fn writeColour(writer: anytype, colour: Colour) !void {
         .Fixed => |fixed| try writer.print("48;5;{}", .{fixed}),
         .Grey => |grey| try writer.print("48;2;{};{};{}", .{ grey, grey, grey }),
         .RGB => |rgb| try writer.print("38;2;{};{};{}", .{ rgb.r, rgb.g, rgb.b }),
-    };
+    }
     try writer.writeAll("m");
 }
 
