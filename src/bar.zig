@@ -33,6 +33,10 @@ const Config = struct {
     ///If the width is greater than the terminal width, the terminal width will be used.
     ///It is up to you to ensure you provide enough space to render the complete bar. If the bar is too small, calls to `render()` will error.
     width: ?usize = null,
+    ///The progress bar foreground colour.
+    colour: ansi_term.Colour = .Default,
+    ///The progress bar background colour.
+    bg_colour: ansi_term.Colour = .Default,
 };
 
 const Bar = @This();
@@ -45,10 +49,6 @@ config: Config,
 mutex: std.Io.Mutex = std.Io.Mutex.init,
 ///Direct access is not thread safe. Use `isFinished()` if you need thread safety.
 finished: bool = false,
-///The progress bar foreground colour.
-colour: ansi_term.Colour = .Default,
-///The progress bar background colour.
-bg_colour: ansi_term.Colour = .Default,
 
 pub fn init(max_progress: usize, writer: *std.Io.File.Writer, config: Config) Bar {
     return Bar{
@@ -138,7 +138,7 @@ pub fn render(self: *Bar) !void {
     for (0..max_percentage_pos) |write_pos| {
         if (write_pos > current_percentage_pos) {
             if (self.config.show_background) {
-                try ansi_term.writeColour(&self.writer.interface, self.bg_colour);
+                try ansi_term.writeColour(&self.writer.interface, self.config.bg_colour);
                 const fill_char_bytes = try std.unicode.utf8Encode(self.config.bar_fill_char, &unicode_conversion_buf);
                 try self.writer.interface.writeAll(unicode_conversion_buf[0..fill_char_bytes]);
                 try ansi_term.resetColour(&self.writer.interface);
@@ -146,7 +146,7 @@ pub fn render(self: *Bar) !void {
             continue;
         }
 
-        try ansi_term.writeColour(&self.writer.interface, self.colour);
+        try ansi_term.writeColour(&self.writer.interface, self.config.colour);
         const fill_char_bytes = try std.unicode.utf8Encode(self.config.bar_fill_char, &unicode_conversion_buf);
         try self.writer.interface.writeAll(unicode_conversion_buf[0..fill_char_bytes]);
         try ansi_term.resetColour(&self.writer.interface);
@@ -172,36 +172,27 @@ pub fn render(self: *Bar) !void {
     try self.writer.interface.flush();
 }
 
-///Set the progress bar colour.
-pub fn setColour(self: *Bar, colour: ansi_term.Colour) void {
+///Update the progress bar colour.
+pub fn updateColour(self: *Bar, colour: ansi_term.Colour) void {
     self.mutex.lockUncancelable(self.writer.io);
     defer self.mutex.unlock(self.writer.io);
 
-    self.colour = colour;
+    self.config.colour = colour;
 }
 
-///Set the progress bar background colour.
-pub fn setBgColour(self: *Bar, colour: ansi_term.Colour) void {
+///Update the progress bar background colour.
+pub fn updateBgColour(self: *Bar, colour: ansi_term.Colour) void {
     self.mutex.lockUncancelable(self.writer.io);
     defer self.mutex.unlock(self.writer.io);
 
-    self.bg_colour = colour;
+    self.config.bg_colour = colour;
 }
 
-///Show the progress bar background.
-pub fn showBg(self: *Bar) void {
+///Toggle the progress bar background.
+pub fn setShowBg(self: *Bar, visible: bool) void {
     self.mutex.lockUncancelable(self.writer.io);
     defer self.mutex.unlock(self.writer.io);
-
-    self.config.show_background = true;
-}
-
-///Hide the progress bar background.
-pub fn hideBg(self: *Bar) void {
-    self.mutex.lockUncancelable(self.writer.io);
-    defer self.mutex.unlock(self.writer.io);
-
-    self.config.show_background = false;
+    self.config.show_background = visible;
 }
 
 ///Returns `true` if the progress bar is finished and `false` otherwise.

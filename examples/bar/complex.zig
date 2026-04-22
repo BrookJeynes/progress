@@ -13,8 +13,8 @@ pub fn main(init: std.process.Init) !void {
         .show_iterations = true,
         .show_percentage = true,
         .width = 60,
+        .colour = .Blue,
     });
-    pb1.setColour(.Blue);
 
     var pb2 = ProgressBar.init(15, &stdout_writer, .{
         .bar_prefix = '|',
@@ -25,10 +25,9 @@ pub fn main(init: std.process.Init) !void {
         .show_percentage = true,
         .width = 100,
         .show_background = true,
+        .colour = .{ .RGB = .{ .r = 255, .g = 0, .b = 127 } },
+        .bg_colour = .{ .RGB = .{ .r = 120, .g = 0, .b = 127 } },
     });
-    pb2.setColour(.{ .RGB = .{ .r = 255, .g = 0, .b = 127 } });
-    pb2.setBgColour(.{ .RGB = .{ .r = 120, .g = 0, .b = 127 } });
-
     const progress_bars: [2]*ProgressBar = .{ &pb1, &pb2 };
 
     for (progress_bars, 0..) |pb, i| {
