@@ -2,6 +2,13 @@
 
 ## v2.0.0 (2026-04-22)
 - chore: Update project to Zig v0.16.0
+- fix: `extra_front_chars` was incorrectly handling padding. Now accounts for custom bars.
+- refactor: Update PredefinedSymbols namespace from enum to struct
+- refactor: `colour` and `bg_colour` api has been updated. These are now set in the config and updated via `update[Colour|BgColour]`.
+- refactor: `setShowBg([true|false])` is now used to update background visibility.
+- fix: Unchecked usize subtraction.
+- fix: Double `clear()` in Spinner when `completion_character` and `clear_on_finish` are both set.
+- fix: Render race condition and redundant width calculation.
 
 ## v1.2.1 (2025-03-26)
 - chore: Update project to Zig v0.14.0
