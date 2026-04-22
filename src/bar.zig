@@ -153,7 +153,10 @@ pub fn render(self: *Bar) !void {
     }
 
     try ansi_term.hideCursor(&self.writer.interface);
-    try ansi_term.setCursorColumn(&self.writer.interface, width - extra_back_chars);
+    try ansi_term.setCursorColumn(
+        &self.writer.interface,
+        std.math.sub(usize, width, extra_back_chars) catch return Error.BarTooSmall,
+    );
 
     const suffix_bytes = try std.unicode.utf8Encode(self.config.bar_suffix, &unicode_conversion_buf);
     try self.writer.interface.writeAll(unicode_conversion_buf[0..suffix_bytes]);
