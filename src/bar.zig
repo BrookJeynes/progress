@@ -87,13 +87,14 @@ pub fn render(self: *Bar) !void {
     const percentage = @as(f32, @floatFromInt(self.current_progress)) / @as(f32, @floatFromInt(self.max_progress));
     var padding: usize = 0;
 
+    const prefix_len: usize = std.unicode.utf8CodepointSequenceLength(self.config.bar_prefix) catch 1;
+    const suffix_len: usize = std.unicode.utf8CodepointSequenceLength(self.config.bar_suffix) catch 1;
+
     const extra_front_chars = brk: {
-        var count: usize = 0;
+        var count: usize = prefix_len + suffix_len;
 
         if (self.config.description) |desc| {
-            count += (desc.len + 3); // "{desc} ||"
-        } else {
-            count += 2; // "||"
+            count += desc.len + 1; // "{desc} + one space"
         }
 
         if (self.config.show_percentage) count += 4; // "xxx%"
