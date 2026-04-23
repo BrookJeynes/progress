@@ -4,6 +4,8 @@ const ansi_term = @import("ansi-term.zig");
 const Bar = bar.Bar;
 const Config = bar.Config;
 
+///A dynamic manager for handling multiple concurrent progress bars.
+///Allocates memory on the heap and can grow dynamically.
 pub const MultiBar = struct {
     bars: std.ArrayList(*Bar),
     writer: *std.Io.File.Writer,
@@ -29,7 +31,10 @@ pub const MultiBar = struct {
         self.bars.deinit(self.allocator);
     }
 
-    pub fn addBar(self: *MultiBar, max_progress: usize, config: Config) !*Bar {
+    ///Add a new progress bar to the manager and allocate space for it.
+    ///Overrides `write_newline_on_finish` to ensure terminal visual integrity.
+    ///Returns the total number of bars currently managed.
+    pub fn addBar(self: *MultiBar, max_progress: usize, config: Config) !usize {
         var safe_config = config;
         safe_config.write_newline_on_finish = false;
 
@@ -38,9 +43,20 @@ pub const MultiBar = struct {
         try self.bars.append(self.allocator, new_pb);
         try self.writer.interface.writeAll("\n");
         self.active_line += 1;
-        return new_pb;
+        return self.bars.items.len;
     }
 
+    ///Returns a pointer to the bar at the given index.
+    ///Not thread safe. The caller is responsible for synchronization
+    ///if the bar is accessed concurrently with `render()` or other threads.
+    pub fn bar(self: *MultiBar, index: usize) !*Bar {
+        if (index >= self.bars.items.len)
+            return error.IndexOutOfBounds;
+        return self.bars.items[index];
+    }
+
+    ///Render all active progress bars.
+    ///Handles terminal cursor repositioning and dynamic reflowing if bars finish.
     pub fn render(self: *MultiBar) !void {
         self.mutex.lockUncancelable(self.writer.io);
         defer self.mutex.unlock(self.writer.io);
@@ -81,6 +97,8 @@ pub const MultiBar = struct {
     }
 };
 
+///A static manager for handling multiple concurrent progress bars.
+///Requires zero allocation, lives on the stack, and has a fixed maximum capacity.
 pub fn MultiBarStatic(comptime max_bars: usize) type {
     return struct {
         const Self = @This();
@@ -101,22 +119,36 @@ pub fn MultiBarStatic(comptime max_bars: usize) type {
             };
         }
 
-        pub fn addBar(self: *Self, max_progress: usize, config: Config) !*Bar {
+        ///Add a new progress bar to the manager.
+        ///Returns `error.TooMAnyBars` if the fixed capacity (`max_bars`) is reached.
+        ///Overrides `write_newline_on_finish` to ensure terminal visual integrity.
+        ///Returns the total number of bars currently managed.
+        pub fn addBar(self: *Self, max_progress: usize, config: Config) !usize {
             if (self.len >= max_bars) return error.TooMAnyBars;
 
             var safe_config = config;
             safe_config.write_newline_on_finish = false;
 
             self.bars[self.len] = Bar.init(max_progress, self.writer, safe_config);
-            const new_pb = &self.bars[self.len];
             self.len += 1;
 
             try self.writer.interface.writeAll("\n");
             self.active_lines += 1;
 
-            return new_pb;
+            return self.len;
         }
 
+        ///Returns a pointer to the bar at the given index.
+        ///Not thread safe. The caller is responsible for synchronization
+        ///if the bar is accessed concurrently with `render()` or other threads.
+        pub fn bar(self: *Self, index: usize) !*Bar {
+            if (index >= self.len)
+                return error.IndexOutOfBounds;
+            return &self.bars[index];
+        }
+
+        ///Render all active progress bars.
+        ///Handles terminal cursor repositioning and dynamic reflowing if bars finish.
         pub fn render(self: *Self) !void {
             self.mutex.lockUncancelable(self.writer.io);
             defer self.mutex.unlock(self.writer.io);
@@ -153,6 +185,8 @@ pub fn MultiBarStatic(comptime max_bars: usize) type {
             self.active_lines = newly_active;
         }
 
+        ///Restore the terminal cursor.
+        ///No memory is freed as this manager is strictly stack-allocated.
         pub fn deinit(self: *Self) void {
             ansi_term.showCursor(&self.writer.interface) catch {};
             self.writer.interface.flush() catch {};

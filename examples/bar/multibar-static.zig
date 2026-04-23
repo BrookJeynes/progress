@@ -6,7 +6,7 @@ pub fn threadWorker(manager: anytype, index: usize, seed: usize) !void {
     var rand_impl = std.Random.DefaultPrng.init(seed);
     const delay = @mod(rand_impl.random().int(i64), 100) + 20;
 
-    const pb = &manager.*.bars[index];
+    const pb = try manager.bar(index);
 
     while (!pb.isFinished()) {
         pb.add(1);
