@@ -26,13 +26,11 @@ pub const MultiBar = struct {
     }
 
     pub fn deinit(self: *MultiBar) void {
-        ansi_term.showCursor(&self.writer.interface) catch {};
-        self.writer.interface.flush() catch {};
         self.bars.deinit(self.allocator);
     }
 
     ///Add a new progress bar to the manager and allocate space for it.
-    ///Overrides `write_newline_on_finish` to ensure terminal visual integrity.
+    ///Overrides `write_newline_on_finish` to false to ensure terminal visual integrity.
     ///Returns the total number of bars currently managed.
     pub fn addBar(self: *MultiBar, max_progress: usize, config: Config) !usize {
         var safe_config = config;
@@ -50,8 +48,9 @@ pub const MultiBar = struct {
     ///Not thread safe. The caller is responsible for synchronization
     ///if the bar is accessed concurrently with `render()` or other threads.
     pub fn bar(self: *MultiBar, index: usize) !*Bar {
-        if (index >= self.bars.items.len)
+        if (index >= self.bars.items.len) {
             return error.IndexOutOfBounds;
+        }
         return self.bars.items[index];
     }
 
@@ -82,6 +81,7 @@ pub const MultiBar = struct {
 
         if (newly_active == 0) {
             try ansi_term.showCursor(&self.writer.interface);
+            try self.writer.interface.flush();
         }
 
         if (newly_active < self.active_line) {
@@ -121,7 +121,7 @@ pub fn MultiBarStatic(comptime max_bars: usize) type {
 
         ///Add a new progress bar to the manager.
         ///Returns `error.TooMAnyBars` if the fixed capacity (`max_bars`) is reached.
-        ///Overrides `write_newline_on_finish` to ensure terminal visual integrity.
+        ///Overrides `write_newline_on_finish` to false to ensure terminal visual integrity.
         ///Returns the total number of bars currently managed.
         pub fn addBar(self: *Self, max_progress: usize, config: Config) !usize {
             if (self.len >= max_bars) return error.TooMAnyBars;
@@ -173,6 +173,11 @@ pub fn MultiBarStatic(comptime max_bars: usize) type {
                 newly_active += 1;
             }
 
+            if (newly_active == 0) {
+                try ansi_term.showCursor(&self.writer.interface);
+                try self.writer.interface.flush();
+            }
+
             if (newly_active < self.active_lines) {
                 const diff = self.active_lines - newly_active;
                 for (0..diff) |_| {
@@ -183,13 +188,6 @@ pub fn MultiBarStatic(comptime max_bars: usize) type {
             }
 
             self.active_lines = newly_active;
-        }
-
-        ///Restore the terminal cursor.
-        ///No memory is freed as this manager is strictly stack-allocated.
-        pub fn deinit(self: *Self) void {
-            ansi_term.showCursor(&self.writer.interface) catch {};
-            self.writer.interface.flush() catch {};
         }
     };
 }

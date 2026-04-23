@@ -25,7 +25,6 @@ pub fn main(init: std.process.Init) !void {
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buf);
 
     var manager = MultiBarStatic(10).init(&stdout_writer);
-    defer manager.deinit();
 
     const num_bars = 5;
 

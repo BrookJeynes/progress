@@ -27,7 +27,7 @@ pub const Config = struct {
     show_percentage: bool = false,
     ///Clear the line when the progress bar finishes.
     clear_on_finish: bool = false,
-    ///Write a newline when the progress bar finishes.
+    ///Write a newline when the progress bar finishes. In the case of a `MultiBar`, this will always be `false`.
     write_newline_on_finish: bool = true,
     ///Custom progress bar width.
     ///If the width is greater than the terminal width, the terminal width will be used.
