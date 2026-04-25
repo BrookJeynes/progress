@@ -24,6 +24,11 @@ pub const MultiBar = struct {
     }
 
     pub fn deinit(self: *MultiBar) void {
+        self.render() catch {};
+        self.mutex.lockUncancelable(self.writer.io);
+        defer self.mutex.unlock(self.writer.io);
+
+        self.writer.interface.flush() catch {};
         self.bars.deinit(self.allocator);
     }
 
@@ -76,7 +81,6 @@ pub const MultiBar = struct {
                 continue;
             }
 
-            try ansi_term.clearCurrentLine(&self.writer.interface);
             try pb.render();
             try ansi_term.cursorDown(&self.writer.interface, 1);
             try ansi_term.setCursorColumn(&self.writer.interface, 0);

@@ -38,7 +38,7 @@ pub fn main(init: std.process.Init) !void {
             .description = desc,
             .show_percentage = true,
             .write_newline_on_finish = false,
-            .clear_on_finish = true,
+            .clear_on_finish = false,
         });
     }
 
