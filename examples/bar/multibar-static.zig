@@ -21,6 +21,7 @@ pub fn main(init: std.process.Init) !void {
     var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buf);
 
     const num_bars = 5;
+    var desc_bufs: [num_bars][32]u8 = undefined;
     var buf: [MultiBar.bufSize(num_bars)]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buf);
 
@@ -28,8 +29,7 @@ pub fn main(init: std.process.Init) !void {
     defer manager.deinit();
 
     for (0..num_bars) |i| {
-        var desc_buf: [32]u8 = undefined;
-        const desc = try std.fmt.bufPrint(&desc_buf, "Task {d}", .{i + 1});
+        const desc = try std.fmt.bufPrint(&desc_bufs[i], "Task {d}", .{i + 1});
 
         _ = try manager.addBar(100, .{
             .description = desc,
