@@ -24,10 +24,10 @@ pub const MultiBar = struct {
     }
 
     pub fn deinit(self: *MultiBar) void {
-        self.render() catch {};
         self.mutex.lockUncancelable(self.writer.io);
         defer self.mutex.unlock(self.writer.io);
 
+        ansi_term.showCursor(&self.writer.interface) catch {};
         self.writer.interface.flush() catch {};
         self.bars.deinit(self.allocator);
     }
@@ -75,9 +75,12 @@ pub const MultiBar = struct {
         try ansi_term.cursorUp(&self.writer.interface, self.active_line);
 
         var newly_active: usize = 0;
+        var all_finished: bool = true;
 
         for (self.bars.items) |*pb| {
-            if (pb.isFinished() and pb.config.clear_on_finish) {
+            if (!pb.isFinished()) {
+                all_finished = false;
+            } else if (pb.config.clear_on_finish) {
                 continue;
             }
 
@@ -86,11 +89,6 @@ pub const MultiBar = struct {
             try ansi_term.setCursorColumn(&self.writer.interface, 0);
 
             newly_active += 1;
-        }
-
-        if (newly_active == 0) {
-            try ansi_term.showCursor(&self.writer.interface);
-            try self.writer.interface.flush();
         }
 
         if (newly_active < self.active_line) {
@@ -102,6 +100,14 @@ pub const MultiBar = struct {
             try ansi_term.cursorUp(&self.writer.interface, diff);
         }
 
-        self.active_line = newly_active;
+        if (all_finished) {
+            try ansi_term.showCursor(&self.writer.interface);
+            try self.writer.interface.flush();
+
+            self.active_line = 0;
+        } else {
+            self.active_line = newly_active;
+            try self.writer.interface.flush();
+        }
     }
 };
