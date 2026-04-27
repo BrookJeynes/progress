@@ -80,7 +80,9 @@ pub const MultiBar = struct {
         for (self.bars.items) |*pb| {
             if (!pb.isFinished()) {
                 all_finished = false;
-            } else if (pb.config.clear_on_finish) {
+            }
+
+            if (pb.isFinished() and pb.config.clear_on_finish) {
                 continue;
             }
 
@@ -102,12 +104,11 @@ pub const MultiBar = struct {
 
         if (all_finished) {
             try ansi_term.showCursor(&self.writer.interface);
-            try self.writer.interface.flush();
-
             self.active_line = 0;
         } else {
             self.active_line = newly_active;
-            try self.writer.interface.flush();
         }
+
+        try self.writer.interface.flush();
     }
 };
