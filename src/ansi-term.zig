@@ -65,6 +65,22 @@ pub fn setCursorColumn(writer: anytype, column: usize) !void {
     try writer.print(csi ++ "{d}G", .{column});
 }
 
+pub fn setCursorPos(writer: anytype, row: usize, column: usize) !void {
+    try writer.print(csi ++ "{d};{d}H", .{ row, column });
+}
+
+pub fn cursorUp(writer: anytype, rows: usize) !void {
+    if (rows > 0) {
+        try writer.print(csi ++ "{d}A", .{rows});
+    }
+}
+
+pub fn cursorDown(writer: anytype, rows: usize) !void {
+    if (rows > 0) {
+        try writer.print(csi ++ "{d}B", .{rows});
+    }
+}
+
 pub fn cursorForward(writer: anytype, columns: usize) !void {
     try writer.print(csi ++ "{d}C", .{columns});
 }

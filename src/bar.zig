@@ -10,7 +10,7 @@ const Error = error{
 ///Used when the terminal width cannot be retrieved.
 const default_bar_width: u16 = 40;
 
-const Config = struct {
+pub const Config = struct {
     ///Progress bar description.
     description: ?[]const u8 = null,
     ///The progress bar prefix.
@@ -27,7 +27,7 @@ const Config = struct {
     show_percentage: bool = false,
     ///Clear the line when the progress bar finishes.
     clear_on_finish: bool = false,
-    ///Write a newline when the progress bar finishes.
+    ///Write a newline when the progress bar finishes. In the case of a `MultiBar`, this will always be `false`.
     write_newline_on_finish: bool = true,
     ///Custom progress bar width.
     ///If the width is greater than the terminal width, the terminal width will be used.
@@ -39,7 +39,7 @@ const Config = struct {
     bg_colour: ansi_term.Colour = .Default,
 };
 
-const Bar = @This();
+pub const Bar = @This();
 
 ///Direct access is not thread safe. Use `currentProgress()` if you need thread safety.
 current_progress: usize = 0,
